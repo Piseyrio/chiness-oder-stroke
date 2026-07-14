@@ -1,0 +1,22 @@
+{
+  "name": "stroke-order-sheets",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "node scripts/generate-search-index.mjs && vite build",
+    "preview": "vite preview",
+    "generate:search": "node scripts/generate-search-index.mjs",
+    "postinstall": "node scripts/generate-search-index.mjs"
+  },
+  "dependencies": {
+    "hanzi": "^2.2.1",
+    "hanzi-writer": "^3.7.2",
+    "hanzi-writer-data": "^2.0.1",
+    "yitizi": "^0.1.3"
+  },
+  "devDependencies": {
+    "vite": "^6.3.5"
+  }
+}
