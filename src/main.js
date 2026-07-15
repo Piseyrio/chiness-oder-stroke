@@ -1,6 +1,7 @@
 ﻿import { loadCharacterData } from './strokeData.js';
 import { buildContentRows, renderSheets } from './sheet.js';
 import { uniqueCharsFromText } from './chars.js';
+import { practiceSuggestionsFor } from './practiceAliases.js';
 import { searchLibrary } from './librarySearch.js';
 import { CJK_FONTS, applyFontVar, ensureFontLoaded } from './fonts.js';
 import {
@@ -32,6 +33,7 @@ const sheetsEl = document.getElementById('sheets');
 const opacityInput = document.getElementById('opacity-input');
 const opacityValue = document.getElementById('opacity-value');
 const fontSelect = document.getElementById('font-select');
+const guideStyleSelect = document.getElementById('guide-style');
 const searchGridEl = document.getElementById('search-grid');
 const searchCountEl = document.getElementById('search-count');
 const searchHintEl = document.getElementById('search-hint');
@@ -56,6 +58,7 @@ const ZOOM_STEP = 0.1;
 const ZOOM_DEFAULT = 1;
 const ZOOM_STORAGE_KEY = 'stroke-order-preview-zoom';
 const FONT_STORAGE_KEY = 'stroke-order-cjk-font';
+const GUIDE_STYLE_KEY = 'stroke-order-guide-style';
 const FONT_IDS = new Set(CJK_FONTS.map((f) => f.id));
 
 let store = loadStore();
@@ -65,6 +68,8 @@ seedDefaultIfEmpty();
 let characters = [...getActivePage(getActiveStudent(store)).characters];
 let opacity = (Number(getActiveStudent(store).opacity) || 20) / 100;
 let previewZoom = loadZoom();
+/** @type {'stroke' | 'font'} */
+let guideStyle = loadGuideStyle();
 let renderToken = 0;
 /** @type {number | null} */
 let selectedIndex = null;
@@ -78,6 +83,7 @@ const strokeCache = new Map();
 
 opacityInput.value = String(Math.round(opacity * 100));
 opacityValue.textContent = `${Math.round(opacity * 100)}%`;
+if (guideStyleSelect) guideStyleSelect.value = guideStyle;
 
 function seedDefaultIfEmpty() {
   const active = getActiveStudent(store);
@@ -151,12 +157,12 @@ function updateSelectionHint() {
   if (!selectionHint) return;
   if (selectedIndex == null) {
     selectionHint.textContent =
-      'Click a grid on the A4 to select it. Then Delete selected, or edit it in the list.';
+      'Click a grid on the A4 to select it. Add Glyphs / Blank Row go to the end (or after the selection).';
     return;
   }
   const char = characters[selectedIndex];
   const label = isEmptyRow(char) ? 'empty grid row' : `“${char}”`;
-  selectionHint.textContent = `Selected grid #${selectedIndex + 1} (${label}). Use Delete selected or the × in the list.`;
+  selectionHint.textContent = `Selected #${selectedIndex + 1} (${label}). Add Glyphs / Blank Row insert after this. Edit the character in the list, or Delete selected.`;
 }
 
 function renderStudentSelect() {
@@ -433,6 +439,22 @@ function loadFontChoice() {
   return FONT_IDS.has(raw) ? raw : 'yahei';
 }
 
+/** @returns {'stroke' | 'font'} */
+function loadGuideStyle() {
+  const raw = localStorage.getItem(GUIDE_STYLE_KEY);
+  return raw === 'font' ? 'font' : 'stroke';
+}
+
+/**
+ * @param {'stroke' | 'font'} style
+ */
+function applyGuideStyle(style) {
+  guideStyle = style === 'font' ? 'font' : 'stroke';
+  localStorage.setItem(GUIDE_STYLE_KEY, guideStyle);
+  if (guideStyleSelect) guideStyleSelect.value = guideStyle;
+  scheduleRender();
+}
+
 /**
  * @param {string} fontId
  */
@@ -469,6 +491,12 @@ function initFontPicker() {
   fontSelect.addEventListener('change', () => {
     applyFont(fontSelect.value);
   });
+
+  if (guideStyleSelect) {
+    guideStyleSelect.addEventListener('change', () => {
+      applyGuideStyle(/** @type {'stroke' | 'font'} */ (guideStyleSelect.value));
+    });
+  }
 }
 
 function renderEmptyPreview() {
@@ -508,41 +536,44 @@ function renderCharList() {
 
     if (isEmptyRow(char)) {
       glyph.textContent = '▢';
-      glyph.title = 'Empty practice bar';
+      glyph.title = 'Empty practice bar — type a character to fill';
       input.value = '';
-      input.placeholder = 'Empty row (blank grid)';
-      input.readOnly = true;
+      input.placeholder = 'Type a character…';
+      input.maxLength = 4;
       input.setAttribute('aria-label', `Empty row ${index + 1}`);
     } else {
       fillGlyph(glyph, char);
       input.value = char;
       input.maxLength = 4;
       input.setAttribute('aria-label', `Character ${index + 1}`);
-      input.addEventListener('change', () => {
-        const next = extractHanzi(input.value)[0];
-        if (!next) {
-          if (input.value.trim() === '') {
-            characters[index] = EMPTY_ROW;
-            saveCharacters();
-            renderCharList();
-            scheduleRender();
-            return;
-          }
-          input.value = characters[index];
-          return;
-        }
-        if (availableChars.size && !availableChars.has(next)) {
-          showErrors([`“${next}” is not in the stroke data. Search and pick a tile below.`]);
-          input.value = characters[index];
-          return;
-        }
-        characters[index] = next;
-        fillGlyph(glyph, next);
-        saveCharacters();
-        renderSearchResults();
-        scheduleRender();
-      });
     }
+
+    input.addEventListener('change', () => {
+      const next = extractHanzi(input.value)[0];
+      if (!next) {
+        if (input.value.trim() === '') {
+          characters[index] = EMPTY_ROW;
+          selectedIndex = index;
+          saveCharacters();
+          renderCharList();
+          scheduleRender();
+          return;
+        }
+        input.value = isEmptyRow(characters[index]) ? '' : characters[index];
+        return;
+      }
+      if (availableChars.size && !availableChars.has(next)) {
+        showErrors([`“${next}” is not in the stroke data. Search and pick a tile below.`]);
+        input.value = isEmptyRow(characters[index]) ? '' : characters[index];
+        return;
+      }
+      characters[index] = next;
+      selectedIndex = index;
+      saveCharacters();
+      renderCharList();
+      renderSearchResults();
+      scheduleRender();
+    });
 
     const btnUp = document.createElement('button');
     btnUp.type = 'button';
@@ -592,8 +623,17 @@ function moveChar(index, delta) {
   scheduleRender();
 }
 
+function insertAfterSelection() {
+  if (selectedIndex != null && selectedIndex >= 0 && selectedIndex < characters.length) {
+    return selectedIndex + 1;
+  }
+  return characters.length;
+}
+
 function addEmptyRow() {
-  characters.push(EMPTY_ROW);
+  const insertAt = insertAfterSelection();
+  characters.splice(insertAt, 0, EMPTY_ROW);
+  selectedIndex = insertAt;
   saveCharacters();
   renderCharList();
   scheduleRender();
@@ -611,7 +651,9 @@ function addCharacters(chars, { clearErrors = true, clearInput = false } = {}) {
     toAdd.push(ch);
   }
   if (toAdd.length) {
-    characters.push(...toAdd);
+    const insertAt = insertAfterSelection();
+    characters.splice(insertAt, 0, ...toAdd);
+    selectedIndex = insertAt + toAdd.length - 1;
     saveCharacters();
     renderCharList();
     if (clearInput) {
@@ -621,8 +663,14 @@ function addCharacters(chars, { clearErrors = true, clearInput = false } = {}) {
     scheduleRender();
   }
   if (missing.length) {
+    const tips = missing.map((ch) => {
+      const alts = practiceSuggestionsFor(ch).filter((a) => !availableChars.size || availableChars.has(a));
+      return alts.length
+        ? `“${ch}” has no stroke data — try ${alts.join(' / ')}`
+        : `“${ch}” has no stroke data`;
+    });
     showErrors([
-      `Not in stroke data: ${missing.join(' ')}. Use search results to pick a matching glyph.`,
+      `${tips.join('. ')}. Pick a matching glyph from search results.`,
     ]);
   } else if (clearErrors) {
     showErrors([]);
@@ -645,17 +693,26 @@ function showErrors(messages) {
   errorsEl.textContent = messages.join(' ');
 }
 
-function updateSearchCount(counts, queryChars) {
+function updateSearchCount(counts, queryChars, unsupported = []) {
   const q = queryChars.join('');
   if (!counts.total) {
-    searchCountEl.innerHTML = `No stroke matches for <strong>${q}</strong>`;
+    const tip = unsupported.length
+      ? ` No stroke-order data for <strong>${unsupported.join(' ')}</strong> (rare/old form). Try a common form.`
+      : '';
+    searchCountEl.innerHTML = `No stroke matches for <strong>${q}</strong>.${tip}`;
     return;
   }
   const parts = [];
   if (counts.exact) parts.push(`${counts.exact} exact`);
   if (counts.variant) parts.push(`${counts.variant} variant`);
   if (counts.related) parts.push(`${counts.related} same-type`);
-  searchCountEl.innerHTML = `Found <strong>${counts.total}</strong> for <strong>${q}</strong> (${parts.join(', ')}) — click to add`;
+  let html = `Found <strong>${counts.total}</strong> for <strong>${q}</strong> (${parts.join(', ')}) — click to add`;
+  if (unsupported.length) {
+    html += `<br/><span class="library-count__warn">“${unsupported.join(
+      ' ',
+    )}” has no stroke-order data — use a suggested glyph below.</span>`;
+  }
+  searchCountEl.innerHTML = html;
 }
 
 function renderSearchResults() {
@@ -672,34 +729,29 @@ function renderSearchResults() {
 
   searchHintEl.hidden = true;
 
-  const available = availableChars.size ? availableChars : new Set(queryChars);
-  const { hits, counts } = searchLibrary(trimmed, {
-    available,
+  if (!availableChars.size) {
+    searchGridEl.hidden = true;
+    searchGridEl.replaceChildren();
+    searchCountEl.innerHTML = 'Loading stroke library…';
+    return;
+  }
+
+  const { hits, counts, unsupported } = searchLibrary(trimmed, {
+    available: availableChars,
     relations: charRelations,
     extractHanzi,
   });
 
-  const list = hits.length
-    ? hits
-    : queryChars.map((char) => ({ char, kind: /** @type {'exact'} */ ('exact') }));
+  updateSearchCount(counts, queryChars, unsupported);
 
-  updateSearchCount(
-    counts.total
-      ? counts
-      : { total: list.length, exact: list.length, variant: 0, related: 0 },
-    queryChars,
-  );
-
-  searchGridEl.hidden = false;
+  searchGridEl.hidden = hits.length === 0;
   searchGridEl.replaceChildren();
 
-  for (const { char, kind } of list) {
-    const missing = availableChars.size > 0 && !availableChars.has(char);
+  for (const { char, kind } of hits) {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = [
       'library-tile',
-      missing ? 'is-missing' : '',
       characters.includes(char) ? 'is-selected' : '',
       `library-tile--${kind}`,
     ]
@@ -708,10 +760,8 @@ function renderSearchResults() {
 
     const kindLabel =
       kind === 'exact' ? 'exact' : kind === 'variant' ? 'variant' : 'type';
-    btn.title = missing
-      ? `${char} — no stroke data`
-      : `${char} (${kindLabel}) — click to add`;
-    btn.disabled = missing;
+    btn.title = `${char} (${kindLabel}) — click to add`;
+    btn.disabled = false;
 
     const badge = document.createElement('span');
     badge.className = 'library-tile__badge';
@@ -722,17 +772,10 @@ function renderSearchResults() {
     holder.className = 'char-item__glyph';
     btn.appendChild(holder);
 
-    if (!missing) {
-      fillGlyph(holder, char);
-      btn.addEventListener('click', () => {
-        addCharacters([char]);
-      });
-    } else {
-      const fallback = document.createElement('span');
-      fallback.className = 'library-tile__fallback';
-      fallback.textContent = char;
-      holder.appendChild(fallback);
-    }
+    fillGlyph(holder, char);
+    btn.addEventListener('click', () => {
+      addCharacters([char]);
+    });
 
     searchGridEl.appendChild(btn);
   }
@@ -740,14 +783,21 @@ function renderSearchResults() {
 
 async function loadStrokeIndex() {
   try {
-    const [indexRes, relRes] = await Promise.all([
+    const [indexRes, customRes, relRes] = await Promise.all([
       fetch('/hanzi-data/_index.json'),
+      fetch('/custom-hanzi-data/_index.json'),
       fetch('/char-relations.json'),
     ]);
+    const chars = [];
     if (indexRes.ok) {
       const data = await indexRes.json();
-      availableChars = new Set(data.characters || []);
+      chars.push(...(data.characters || []));
     }
+    if (customRes.ok) {
+      const data = await customRes.json();
+      chars.push(...(data.characters || []));
+    }
+    availableChars = new Set(chars);
     if (relRes.ok) {
       charRelations = await relRes.json();
     }
@@ -794,11 +844,12 @@ async function renderSheet() {
     .filter(Boolean);
 
   showErrors(errors);
-  const rows = buildContentRows(ordered);
+  const rows = buildContentRows(ordered, { guideStyle });
   sheetCount =
     renderSheets(sheetsEl, rows, opacity, {
       selectedIndex,
       onSelect: selectGrid,
+      guideStyle,
     }) || 1;
 
   // Show every A4 sheet belonging to this page (overflow stacks).
@@ -846,17 +897,30 @@ btnPrint.addEventListener('click', async () => {
   const active = getActiveStudent(store);
   const restoreChars = [...characters];
   const restorePageId = active.activePageId;
+  const restoreZoom = previewZoom;
   characters = active.pages.flatMap((p) => p.characters);
   selectedIndex = null;
   try {
+    // Print must use real A4 size (not the preview zoom width).
+    setZoom(1);
     await renderSheet();
     sheetsEl.querySelectorAll('.sheet-page').forEach((el) => {
       el.classList.add('is-active-page');
     });
+    document.documentElement.classList.add('is-printing');
+    if (document.fonts?.ready) {
+      await document.fonts.ready;
+    }
+    // Let the browser finish layout at print size before opening the dialog.
+    await new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    });
     window.print();
   } finally {
+    document.documentElement.classList.remove('is-printing');
     active.activePageId = restorePageId;
     characters = restoreChars;
+    setZoom(restoreZoom);
     scheduleRender();
   }
 });

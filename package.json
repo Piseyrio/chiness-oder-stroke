@@ -8,6 +8,7 @@
     "build": "node scripts/generate-search-index.mjs && vite build",
     "preview": "vite preview",
     "generate:search": "node scripts/generate-search-index.mjs",
+    "compose:custom": "node scripts/compose-zhen-variant.mjs",
     "postinstall": "node scripts/generate-search-index.mjs"
   },
   "dependencies": {

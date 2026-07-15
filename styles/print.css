@@ -462,7 +462,8 @@ html.light .theme-icon-moon {
   color: var(--on-surface-variant);
 }
 
-#font-select {
+#font-select,
+#guide-style {
   width: 100%;
   padding: 0.65rem 0.75rem;
   border: 1px solid var(--outline-variant);
@@ -474,7 +475,8 @@ html.light .theme-icon-moon {
   cursor: pointer;
 }
 
-#font-select:focus {
+#font-select:focus,
+#guide-style:focus {
   border-color: transparent;
   box-shadow: 0 0 0 2px var(--primary-container);
 }
@@ -537,6 +539,13 @@ html.light .theme-icon-moon {
   font-style: normal;
   color: var(--on-surface);
   font-weight: 600;
+}
+
+.library-count__warn {
+  display: inline-block;
+  margin-top: 0.25rem;
+  color: var(--error);
+  font-style: normal;
 }
 
 .library__hint {
@@ -1125,8 +1134,8 @@ html.light .sheet-empty {
   min-width: 0;
   width: 100%;
   display: grid;
-  grid-template-columns: repeat(12, minmax(0, 1fr));
-  grid-template-rows: repeat(16, minmax(0, 1fr));
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  grid-template-rows: repeat(14, minmax(0, 1fr));
   border-top: 1.5px solid var(--line);
   border-left: 1.5px solid var(--line);
 }
@@ -1156,19 +1165,25 @@ html.light .sheet-empty {
 
 .cell__char {
   position: absolute;
-  inset: 6%;
-  width: 88%;
-  height: 88%;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  padding: 6%;
+  box-sizing: border-box;
 }
 
 .cell__char--font {
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-family: var(--font-cjk);
   font-size: 70cqmin;
   line-height: 1;
   color: #222;
   user-select: none;
+  /* CJK fonts sit high in the em-box — nudge toward optical center */
+  padding-top: calc(6% + 0.06em);
 }
 
 .cell--master .cell__char--font {
@@ -1237,9 +1252,20 @@ html.light .sheet-empty {
 }
 
 @media print {
+  html {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
   html,
   body {
+    margin: 0 !important;
+    padding: 0 !important;
     background: #fff !important;
+    color: #111;
+    min-height: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
   }
 
   .no-print {
@@ -1247,48 +1273,61 @@ html.light .sheet-empty {
   }
 
   .app {
-    display: block;
-    height: auto;
-    overflow: visible;
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
   }
 
   .preview {
-    padding: 0;
-    overflow: visible;
-    background: #fff;
-    display: block;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+    display: block !important;
+    position: static !important;
+    min-height: 0 !important;
   }
 
   .preview__canvas {
-    padding: 0;
-    overflow: visible;
-    display: block;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+    position: static !important;
   }
 
   .sheets {
-    gap: 0;
+    gap: 0 !important;
     align-items: stretch;
-    max-width: none;
-    width: auto;
+    max-width: none !important;
+    width: 210mm !important;
+    margin: 0 !important;
     --preview-zoom: 1 !important;
+    transform: none !important;
   }
 
   .sheet-page {
     display: flex !important;
-    width: 210mm;
-    height: 297mm;
-    max-width: none;
-    aspect-ratio: auto;
-    padding: 8mm 8mm 12mm;
-    margin-top: 0;
-    box-shadow: none;
-    border: none;
+    flex-direction: column !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    max-width: none !important;
+    aspect-ratio: auto !important;
+    /* Match on-screen padding (% is of width) so cell sizes match the preview. */
+    padding: 3.5% 3.5% 7% !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+    overflow: hidden !important;
+    background: #fff !important;
     page-break-after: always;
     break-after: page;
+    break-inside: avoid;
+    page-break-inside: avoid;
   }
 
   .sheet-page__footer {
-    color: #666;
+    color: #666 !important;
   }
 
   .sheet-page:last-child {
@@ -1297,6 +1336,95 @@ html.light .sheet-empty {
   }
 
   .sheet-empty {
-    display: none;
+    display: none !important;
+  }
+
+  /*
+   * Chrome often mishandles `fr` rows inside nested flex when printing —
+   * pin the grid to the padded page box so every cell stays a square block.
+   */
+  .sheet-grid {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    display: grid !important;
+    grid-template-columns: repeat(10, 1fr) !important;
+    grid-template-rows: repeat(14, 1fr) !important;
+    border-top: 0.3mm solid #8b93a3 !important;
+    border-left: 0.3mm solid #8b93a3 !important;
+  }
+
+  .cell {
+    position: relative !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    border-right: 0.3mm solid #8b93a3 !important;
+    border-bottom: 0.3mm solid #8b93a3 !important;
+    background: #fff !important;
+    container-type: size;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  .cell.is-selected,
+  .cell--editable:hover {
+    outline: none !important;
+    background: #fff !important;
+  }
+
+  .cell__guides {
+    position: absolute !important;
+    inset: 0 !important;
+  }
+
+  .cell__guides line {
+    stroke: #b0b6c0 !important;
+    stroke-width: 0.3 !important;
+  }
+
+  .cell__char {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    padding: 7% !important;
+    box-sizing: border-box !important;
+  }
+
+  /*
+   * Soft stroke guides: do NOT use opacity when printing.
+   * Overlapping paths with opacity create ghosted/doubled ink in Chrome PDF.
+   * Map --soft-opacity into a solid gray fill instead.
+   */
+  .cell--guide .cell__char path {
+    fill: color-mix(in srgb, #222 calc(var(--soft-opacity) * 100%), #fff) !important;
+    opacity: 1 !important;
+  }
+
+  .cell--master .cell__char path {
+    fill: #b42318 !important;
+    opacity: 1 !important;
+  }
+
+  .cell__char--font {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    /* Cell ≈ 16mm; keep master glyphs inside the block like the screen preview. */
+    font-size: 10.5mm !important;
+    line-height: 1 !important;
+    padding-top: calc(7% + 0.05em) !important;
+  }
+
+  .cell--master .cell__char--font {
+    color: #b42318 !important;
+    opacity: 1 !important;
+  }
+
+  .cell--guide .cell__char--font {
+    color: color-mix(in srgb, #222 calc(var(--soft-opacity) * 100%), #fff) !important;
+    opacity: 1 !important;
   }
 }

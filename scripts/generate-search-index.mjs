@@ -15,17 +15,22 @@ const Yitizi = require('yitizi');
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 const dataDir = path.join(root, 'node_modules', 'hanzi-writer-data');
+const customDataDir = path.join(root, 'public', 'custom-hanzi-data');
 const outPath = path.join(root, 'public', 'char-relations.json');
 
 hanzi.start();
 
-const available = new Set(
-  fs
-    .readdirSync(dataDir)
+function listChars(dir) {
+  if (!fs.existsSync(dir)) return [];
+  return fs
+    .readdirSync(dir)
     .filter((name) => name.endsWith('.json') && !name.startsWith('_'))
     .map((name) => name.slice(0, -'.json'.length))
-    .filter(Boolean),
-);
+    .filter(Boolean);
+}
+
+const available = new Set([...listChars(dataDir), ...listChars(customDataDir)]);
+
 
 /** @type {Record<string, { variants: string[], related: string[] }>} */
 const relations = {};
@@ -50,6 +55,18 @@ for (const char of available) {
 }
 
 fs.mkdirSync(path.dirname(outPath), { recursive: true });
+
+// Manual links for custom / rare glyphs composed outside Make Me A Hanzi
+if (available.has('鉁') && available.has('珍')) {
+  const entry = relations['鉁'] || { variants: [], related: [] };
+  entry.variants = [...new Set([...(entry.variants || []), '珍'])];
+  relations['鉁'] = entry;
+
+  const zhen = relations['珍'] || { variants: [], related: [] };
+  zhen.variants = [...new Set([...(zhen.variants || []), '鉁'])];
+  relations['珍'] = zhen;
+}
+
 fs.writeFileSync(outPath, JSON.stringify(relations));
 console.log(
   `Wrote ${outPath} (${Object.keys(relations).length} entries with variants/related)`,

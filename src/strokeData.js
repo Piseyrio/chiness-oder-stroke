@@ -3,7 +3,8 @@ import HanziWriter from 'hanzi-writer';
 const cache = new Map();
 
 /**
- * Load stroke path data for a character (local /hanzi-data in dev, CDN fallback).
+ * Load stroke path data for a character.
+ * Order: custom overrides → local /hanzi-data → HanziWriter CDN.
  * @param {string} char
  * @returns {Promise<{ strokes: string[], medians: number[][][] }>}
  */
@@ -13,14 +14,20 @@ export async function loadCharacterData(char) {
   }
 
   const promise = (async () => {
-    const localUrl = `/hanzi-data/${encodeURIComponent(char)}.json`;
-    try {
-      const res = await fetch(localUrl);
-      if (res.ok) {
-        return await res.json();
+    const urls = [
+      `/custom-hanzi-data/${encodeURIComponent(char)}.json`,
+      `/hanzi-data/${encodeURIComponent(char)}.json`,
+    ];
+
+    for (const url of urls) {
+      try {
+        const res = await fetch(url);
+        if (res.ok) {
+          return await res.json();
+        }
+      } catch {
+        // try next source
       }
-    } catch {
-      // fall through to CDN / HanziWriter loader
     }
 
     try {

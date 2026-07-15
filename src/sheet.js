@@ -1,7 +1,7 @@
 import { getScalingTransform } from './strokeData.js';
 
-const COLS = 12;
-const ROWS = 16;
+const COLS = 10;
+const ROWS = 14;
 const SVG_NS = 'http://www.w3.org/2000/svg';
 /** ViewBox size for character SVG inside each cell (arbitrary; scaled by CSS). */
 const CHAR_BOX = 100;
@@ -10,9 +10,11 @@ const CHAR_BOX = 100;
  * Expand sheet items into abstract grid rows.
  * Blank items (`strokes` empty + `blank: true`) become one empty practice bar.
  * @param {Array<{ char?: string, strokes: string[], blank?: boolean, sourceIndex?: number }>} loaded
+ * @param {{ guideStyle?: 'stroke' | 'font' }} [opts]
  * @returns {Array<Array<{ type: 'empty' | 'master' | 'guide', strokes: string[], char?: string, sourceIndex?: number }>>}
  */
-export function buildContentRows(loaded) {
+export function buildContentRows(loaded, opts = {}) {
+  const guideStyle = opts.guideStyle === 'font' ? 'font' : 'stroke';
   /** @type {Array<Array<{ type: 'empty' | 'master' | 'guide', strokes: string[], char?: string, sourceIndex?: number }>>} */
   const rows = [];
 
@@ -32,6 +34,17 @@ export function buildContentRows(loaded) {
     }
 
     const { strokes, char = '' } = item;
+
+    // Match Chinese font (描红): one model + soft full glyphs — same face as Settings font.
+    if (guideStyle === 'font') {
+      const row = [{ type: 'master', strokes: [...strokes], char, sourceIndex }];
+      for (let col = 1; col < COLS; col++) {
+        row.push({ type: 'guide', strokes: [...strokes], char, sourceIndex });
+      }
+      rows.push(row);
+      continue;
+    }
+
     const total = strokes.length;
     let strokeIndex = 0;
     let firstRow = true;
@@ -57,6 +70,7 @@ export function buildContentRows(loaded) {
         }
         firstRow = false;
       } else {
+        // Overflow row: finish remaining stroke steps, then soft full glyphs to practice.
         for (let col = 0; col < COLS; col++) {
           if (strokeIndex < total) {
             strokeIndex += 1;
@@ -84,7 +98,7 @@ export function buildContentRows(loaded) {
 }
 
 /**
- * Pad/split content rows into A4 pages of 16 rows × 12 cols.
+ * Pad/split content rows into A4 pages of 14 rows × 10 cols.
  * @param {ReturnType<typeof buildContentRows>} contentRows
  */
 export function paginateRows(contentRows) {
@@ -164,9 +178,10 @@ function createCharFont(char) {
 
 /**
  * @param {{ type: string, strokes: string[], char?: string, sourceIndex?: number }} cellData
- * @param {{ selectedIndex?: number | null, onSelect?: (index: number) => void }} [interact]
+ * @param {{ selectedIndex?: number | null, onSelect?: (index: number) => void, guideStyle?: 'stroke' | 'font' }} [interact]
  */
 function createCell(cellData, interact = {}) {
+  const guideStyle = interact.guideStyle === 'font' ? 'font' : 'stroke';
   const cell = document.createElement('div');
   cell.className = `cell cell--${cellData.type}`;
   cell.appendChild(createGuidesSvg());
@@ -194,6 +209,12 @@ function createCell(cellData, interact = {}) {
     return cell;
   }
 
+  // Soft practice glyphs can follow the selected Chinese font (描红).
+  if (guideStyle === 'font' && cellData.char) {
+    cell.appendChild(createCharFont(cellData.char));
+    return cell;
+  }
+
   if (cellData.strokes.length > 0) {
     cell.appendChild(createCharSvg(cellData.strokes));
   }
@@ -205,11 +226,12 @@ function createCell(cellData, interact = {}) {
  * @param {HTMLElement} container
  * @param {ReturnType<typeof buildContentRows>} contentRows
  * @param {number} opacity 0–1
- * @param {{ selectedIndex?: number | null, onSelect?: (index: number) => void, activeSheet?: number }} [opts]
+ * @param {{ selectedIndex?: number | null, onSelect?: (index: number) => void, activeSheet?: number, guideStyle?: 'stroke' | 'font' }} [opts]
  */
 export function renderSheets(container, contentRows, opacity, opts = {}) {
   container.replaceChildren();
   document.documentElement.style.setProperty('--soft-opacity', String(opacity));
+  const guideStyle = opts.guideStyle === 'font' ? 'font' : 'stroke';
 
   const pages = paginateRows(contentRows);
   const activeSheet = Math.min(pages.length, Math.max(1, opts.activeSheet || 1));
@@ -229,6 +251,7 @@ export function renderSheets(container, contentRows, opacity, opts = {}) {
           createCell(cell, {
             selectedIndex: opts.selectedIndex,
             onSelect: opts.onSelect,
+            guideStyle,
           }),
         );
       }
